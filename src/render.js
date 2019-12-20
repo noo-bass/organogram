@@ -6,6 +6,7 @@ import link from './link'
 import { diagonal } from './diagonal'
 
 export default function (svgId, rows) {
+
   var width = paperSizes.a2.width
   var height = paperSizes.a2.height
   var radius = d3.min([width, height]) / 2 - 100
