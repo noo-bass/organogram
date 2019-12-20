@@ -1,7 +1,7 @@
 <html>
   <head>
     <script src="organogram.js"></script>
-    <script src="d3-scale-chromatic.min.js"></script>
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
     <style type="text/css" media="screen">
       svg {
         border: 1px dashed grey;
@@ -49,49 +49,109 @@
         return "grey";
       };
 
-      var rootId = "5";
+      // var rootId = "5";
 
       d3.select("#version").text("v" + organogram.version);
 
+      function find_selected(id){
+        var a = []
+        var b = []
+        d3.selectAll(id).select(function(){
+          a.push(this.text)
+          b.push(!!this.selected)
+        })
+        var sel = []
+        a.map((e, i) => {
+          if(b[i]){
+            sel.push(e)
+          }
+        })
+        return sel
+      }
+
       organogram.prepareDrop(function(json){
         try {
-          referenceColumnName = "Reference";
-          reportToColumnName = "Report to";
-          wteColumnName = "Budgeted WTE";
-          payGrade = "Actual Pay Grade/Scale";
-          // payGrade = "Budgeted Pay Grade"
-          // referenceColumnName = "Post Unique Reference";
-          // reportToColumnName = "Reports to Senior Post";
-          // wteColumnName = "FTE";
+          d3.selectAll('#buttonsect').remove()
+          d3.selectAll('#organigramize').remove()
+          var criteria = [ 'Reference',
+          'Reports To', 'Colour', 'Size', 'Label']
+          var columns = Object.keys(json[0])
+          var contdiv = d3.select('.container').append('div').attr('id', 'buttonsect')
+          var button = d3.select('.container').append('button')
+                         .attr('id', 'organigramize')
+                         .text('Organigramize').style('display', 'inline-block')
 
-          json = json.map(function(d){
-            return {
-              reference: d[referenceColumnName],
-              report_to: d[referenceColumnName] == rootId ? '' : d[reportToColumnName],
-              label: '' + d["Post Title"],
-              // label: ('' + d["Employee Name"]).match(/vacant/i) ? "" + d["New ESR"] : d["Preferred First Name"] + " " + d["Last Name"],
-              label_colour: ('' + d["Employee Name"]).match(/(vacant|dis-est|frozen|delete)/i) ? "#aaa" : "#333",
-              pay_grade: d[payGrade],
-              grade_index: gradeIndex(d[payGrade]),
-              colour: colour(gradeIndex(d[payGrade])),
-              wte: +d[wteColumnName],
-            };
-          });
+          criteria.map(function(d){
+            var div = contdiv.append('div').style('display', 'inline-block').attr('id', 'buttonsect')
+            var label = div.append("label").attr('for', d).text(d)
+            var select = div.append("select").attr('id', d)
+            var selections = select.selectAll('options')
+            selections = selections.data(columns)
+            selections = selections.enter().append("option")
+                                   .attr("id", d)
+                                   .attr("value", d => d).text(d => d)
+          })
 
-          // filter seemingly empty rows
-          json = json.filter(function(d){ return 'undefined' !== typeof d.reference && 'undefined' !== typeof d.report_to });
+          d3.select('#organigramize').on('click', function(){
+            var payGrade = find_selected('#Colour')[0],
+                referenceColumnName = find_selected('#Reference')[0],
+                reportToColumnName = find_selected('#Reports\\ To')[0],
+                wteColumnName = find_selected('#Size')[0],
+                labelColumnName = find_selected('#Label')[0]
 
-          // filter the rows to children and the selected root (to avoid multiple roots)
-          json = json.filter(function(d){ return d.report_to != '' || d.reference == rootId; });
+            var payGrade = 'Bugeted Pay Grade',
+                referenceColumnName = 'Reference',
+                reportToColumnName = 'Report to',
+                wteColumnName = 'Budgeted WTE',
+                labelColumnName = 'Employee Name'
+                
+            var ids = json.map(function (d) {
+              return d[referenceColumnName]
+            })
+            var unknownParentIds = json.filter(function (d) {
+              return !ids.includes(d[reportToColumnName]) && d[reportToColumnName] != ''
+            }).map(function (d) {
+              return d[reportToColumnName]
+            })
+            unknownParentIds = Array.from(new Set(unknownParentIds))
 
-          // Reset error message and remove existing SVG
-          d3.select("#error").text("");
-          d3.select("#organogram").remove();
+            if (unknownParentIds.length == 1) {
+              var rootId = json.map(e => e[referenceColumnName])[json.map(e => e[reportToColumnName])
+                            .findIndex(d => d == unknownParentIds[0])]
+            }
+            storedjson = json
+            json = json.map(function(d){
+              return {
+                reference: d[referenceColumnName],
+                report_to: d[referenceColumnName] == rootId ? '' : d[reportToColumnName],
+                label: '' + d[labelColumnName],
+                // label: ('' + d["Employee Name"]).match(/vacant/i) ? "" + d["New ESR"] : d["Preferred First Name"] + " " + d["Last Name"],
+                label_colour: ('' + d["Employee Name"]).match(/(vacant|dis-est|frozen|delete)/i) ? "#aaa" : "#333",
+                pay_grade: d[payGrade],
+                grade_index: gradeIndex(d[payGrade]),
+                // colour: colour(parseInt(d[payGrade])),
+                colour: colour(gradeIndex(d[payGrade])),
+                wte: +d[wteColumnName],
+              };
+            });
 
-          organogram.render("organogram", json);
-          d3.select("#intro").remove();
-          organogram.downloadSVG(document, "organogram", "downloadsvg");
-          organogram.downloadPDF(document, "organogram", "downloadpdf");
+            // filter seemingly empty rows
+            json = json.filter(function(d){ return 'undefined' !== typeof d.reference && 'undefined' !== typeof d.report_to });
+
+            // filter the rows to children and the selected root (to avoid multiple roots)
+            json = json.filter(function(d){ return d.report_to != '' || d.reference == rootId; });
+
+            // Reset error message and remove existing SVG
+            d3.select("#error").text("");
+            d3.select("#organogram").remove();
+
+            organogram.render("organogram", json);
+            d3.select("#intro").remove();
+            organogram.downloadSVG(document, "organogram", "downloadsvg");
+            organogram.downloadPDF(document, "organogram", "downloadpdf");
+            json = storedjson
+          })
+
         }
         catch(err) {
           d3.select("#error").text("Generator failed with the message: " + err.message)
